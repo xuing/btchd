@@ -66,7 +66,7 @@ static const unsigned int DEFAULT_DESCENDANT_LIMIT = 25;
 /** Default for -limitdescendantsize, maximum kilobytes of in-mempool descendants */
 static const unsigned int DEFAULT_DESCENDANT_SIZE_LIMIT = 101;
 /** Default for -mempoolexpiry, expiration time for mempool transactions in hours */
-static const unsigned int DEFAULT_MEMPOOL_EXPIRY = 336;
+static const unsigned int DEFAULT_MEMPOOL_EXPIRY = 168;
 /** Maximum kilobytes for transactions to store for processing during reorg */
 static const unsigned int MAX_DISCONNECTED_TX_POOL_SIZE = 20000;
 /** The maximum size of a blk?????.dat file (since 0.8) */
@@ -127,7 +127,7 @@ static const int64_t DEFAULT_MAX_TIP_AGE = 24 * 60 * 60;
 static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
 
 /** Default for -permitbaremultisig */
-static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
+static const bool DEFAULT_PERMIT_BAREMULTISIG = false;
 static const bool DEFAULT_CHECKPOINTS_ENABLED = true;
 static const bool DEFAULT_TXINDEX = false;
 static const unsigned int DEFAULT_BANSCORE_THRESHOLD = 100;
@@ -137,6 +137,9 @@ static const bool DEFAULT_PERSIST_MEMPOOL = true;
 static const bool DEFAULT_ENABLE_REPLACEMENT = true;
 /** Default for using fee filter */
 static const bool DEFAULT_FEEFILTER = true;
+
+/** Default for force check deadline */
+static const bool DEFAULT_FORCECHECKDEADLINE_ENABLED = false;
 
 /** Maximum number of headers to announce when relaying blocks with headers message.*/
 static const unsigned int MAX_BLOCKS_TO_ANNOUNCE = 8;
@@ -173,6 +176,7 @@ extern bool fIsBareMultisigStd;
 extern bool fRequireStandard;
 extern bool fCheckBlockIndex;
 extern bool fCheckpointsEnabled;
+extern bool fForceCheckDeadline;
 extern size_t nCoinCacheUsage;
 /** A fee rate smaller than this is considered zero fee (for relaying, mining and transaction creation) */
 extern CFeeRate minRelayTxFee;
@@ -206,7 +210,7 @@ static const unsigned int MIN_BLOCKS_TO_KEEP = 288;
 /** Minimum blocks required to signal NODE_NETWORK_LIMITED */
 static const unsigned int NODE_NETWORK_LIMITED_MIN_BLOCKS = 288;
 
-static const signed int DEFAULT_CHECKBLOCKS = 6;
+static const signed int DEFAULT_CHECKBLOCKS = 36;
 static const unsigned int DEFAULT_CHECKLEVEL = 3;
 
 // Require that user allocate at least 550MB for block & undo files (blk???.dat and rev???.dat)
@@ -278,7 +282,26 @@ bool IsInitialBlockDownload();
 bool GetTransaction(const uint256& hash, CTransactionRef& tx, const Consensus::Params& params, uint256& hashBlock, bool fAllowSlow = false, CBlockIndex* blockIndex = nullptr);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, std::shared_ptr<const CBlock> pblock = std::shared_ptr<const CBlock>());
+/** Get block subsidy */
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+/** Get block reward */
+typedef struct {
+    CAmount miner;
+    CAmount miner0; //! For BHDIP004
+    CAmount fund;
+    CAmount accumulate;
+    bool fUnconditional;
+} BlockReward;
+BlockReward GetBlockReward(const CBlockIndex* pindexPrev, const CAmount& nFees, const CAccountID& generatorAccountID, const uint64_t& nPlotterId,
+    const CCoinsViewCache& view, const Consensus::Params& consensusParams);
+
+CAmount GetLowMortgageAccumulateSubsidy(const CBlockIndex* pindexPrev, const Consensus::Params& consensusParams);
+BlockReward GetFullMortgageBlockReward(int nHeight, const Consensus::Params& consensusParams);
+BlockReward GetLowMortgageBlockReward(int nHeight, const Consensus::Params& consensusParams);
+CAmount GetFullMortgageFundRoyalty(int nHeight, const Consensus::Params& consensusParams);
+CAmount GetLowMortgageFundRoyalty(int nHeight, const Consensus::Params& consensusParams);
+int GetFullMortgageFundRoyaltyRatio(int nHeight, const Consensus::Params& consensusParams);
+int GetLowMortgageFundRoyaltyRatio(int nHeight, const Consensus::Params& consensusParams);
 
 /** Guess verification progress (as a fraction between 0.0=genesis and 1.0=current tip). */
 double GuessVerificationProgress(const ChainTxData& data, const CBlockIndex* pindex);
@@ -400,10 +423,10 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
 /** Functions for validating blocks and updating the block tree */
 
 /** Context-independent validity checks */
-bool CheckBlock(const CBlock& block, CValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+bool CheckBlock(const CBlock& block, CValidationState& state, const CChainParams& chainparams, bool fCheckWork = true, bool fCheckMerkleRoot = true);
 
 /** Check a block is completely valid from start to finish (only works on top of our current best block, with cs_main held) */
-bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams, const CBlock& block, CBlockIndex* pindexPrev, bool fCheckWork = true, bool fCheckMerkleRoot = true);
 
 /** Check whether witness commitments are required for block. */
 bool IsWitnessEnabled(const CBlockIndex* pindexPrev, const Consensus::Params& params);
